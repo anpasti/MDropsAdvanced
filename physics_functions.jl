@@ -534,6 +534,28 @@ function quadropole_potential(point::Array{Float64})
                  scalar_magnetic_potential([x, y, z], M, 0., [0.5, 1.], [-0.5, 0.], [-z_lim/2, z_lim/2])
 end
 
+function make_arbitrary_force_velocity_lambda1(forces, points, faces, normals; gaussorder=3)
+# velocity due to arbitrary (non-singular) force, when viscosity ratio is λ=1
+# v_k = 1/(8π) * ∫ f_i G_{ik} dS
+    deltaS = make_dS(points,faces)
+    N = size(points, 2)
+    velocities = zeros(Float64, 3, N)
+
+    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [n1 n2 n3] # matrix of vertex normals
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        n = B * zeta_xi_eta
+        return n/norm(n)
+    end
+
+    # jāturpina te
+
+    return velocities
+end
+
 function make_L_sing(points, faces, normals; gaussorder=3)
     deltaS = make_dS(points,faces)
     N = size(points, 2)
