@@ -19,7 +19,7 @@ include("./mesh_functions.jl")
 include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
-points, faces = expand_icosamesh(R=1, depth=3)
+points, faces = expand_icosamesh(R=1, depth=2)
 
 #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
 points = Array{Float64}(points)
@@ -31,7 +31,7 @@ t = 0.
 dt = 0.05
 steps = 3500000
 last_step = 0
-cutoff_crit = 0.2 # for triangle size
+cutoff_crit = 0.3#0.2 # for triangle size
 
 
 previous_i_when_flip = -1000
@@ -49,6 +49,10 @@ for i in 1:steps
     println("----- Number of points: $(size(points,2)) ---------- Step ($i)$(i+last_step)--- t = $(t)-------")
 	println("----------$(Dates.format(now(), "yyyy-mm-dd;  HH:MM:SS"))------------")
     println("----------------------------------------------------------------------")
+
+#    if size(points,2) > 3000
+#    	break
+#    end
 
     global points, faces, connectivity, normals, velocities, velocities_n, neighbor_faces, edges, CDE
     global dt, t, V0
@@ -69,7 +73,12 @@ for i in 1:steps
 
 
     ##### calculate velocity here #####
-    velocities_phys = zeros(size(points))
+    forces = zeros(size(points))
+    for k = 1:size(points,2)
+        forces[:,k] = -dot( [0.,0.,1.], normals[:,k] ) * [0.,0.,1.]
+    end
+
+    velocities_phys = make_arbitrary_force_velocity_lambda1(forces, points, faces; gaussorder=3)
 
     velocities = make_Vvecs_conjgrad(normals,faces, points, velocities_phys, 1e-6, 500) # passive stabilization
     ###################################
@@ -189,6 +198,13 @@ for i in 1:steps
     a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
     println(" --- c/a = $(c/a) , c/b = $(c/b)")
 
+
+    if i % 1 == 0
+        data = [points, faces, t, velocities_phys, normals, CDE, forces]
+		#[points, faces, t, velocities_phys, H0, Bm]
+        #println("Finished step $(last_step + i)")
+        @save "/home/andris/Documents/MDropsAdvanced/results/ceb_swarm/$(lpad(i + last_step,5,"0")).jld2" data
+    end
 
 end # end simulation iterations
 println("hooray, simulation finished :)")

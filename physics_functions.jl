@@ -534,26 +534,69 @@ function quadropole_potential(point::Array{Float64})
                  scalar_magnetic_potential([x, y, z], M, 0., [0.5, 1.], [-0.5, 0.], [-z_lim/2, z_lim/2])
 end
 
-function make_arbitrary_force_velocity_lambda1(forces, points, faces, normals; gaussorder=3)
+function make_arbitrary_force_velocity_lambda1(forces, points, faces; gaussorder=3)
 # velocity due to arbitrary (non-singular) force, when viscosity ratio is λ=1
 # v_k = 1/(8π) * ∫ f_i G_{ik} dS
-    deltaS = make_dS(points,faces)
+    #deltaS = make_dS(points,faces)
     N = size(points, 2)
     velocities = zeros(Float64, 3, N)
 
-    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+    function make_f(x,x1,x2,x3,f1,f2,f3) # force linear interpolation
         A = [x1 x2 x3] # matrix of vertex radiusvecotrs
-        B = [n1 n2 n3] # matrix of vertex normals
+        B = [f1 f2 f3] # matrix of vertex forces
 
         zeta_xi_eta = A \ x # find local triangle parameters
 
-        n = B * zeta_xi_eta
-        return n/norm(n)
+        finterp = B * zeta_xi_eta
+        return finterp
     end
 
-    # jāturpina te
+    for ykey in 1:N # start force calculation
+        function make_f_dot_G(x,x1,x2,x3,f1,f2,f3; y=points[:,ykey])
+            fx = make_f(x,x1,x2,x3,f1,f2,f3)
+            r = y - x
 
-    return velocities
+            return fx / norm(r)  +  r*dot(r,fx)/norm(r)^3
+        end
+
+        function make_f_dot_G_times_norm_r(x,x1,x2,x3,f1,f2,f3; y=points[:,ykey])
+            fx = make_f(x,x1,x2,x3,f1,f2,f3)
+            r = y - x
+
+            return fx  +  r*dot(r,fx)/norm(r)^2
+        end
+
+        #ny = normals[:, ykey]
+        #ry = points[:, ykey]
+
+        for i in 1:size(faces, 2)
+            #println("triangle: $i")
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1, x2, x3 = [points[:, faces[j,i]] for j in 1:3]
+                f1, f2, f3 = [forces[:, faces[j,i]] for j in 1:3]
+
+                velocities[:,ykey] += gauss_nonsingular(x->make_f_dot_G(x,x1,x2,x3,f1,f2,f3), x1,x2,x3,gaussorder)
+                #println(x1, x2, x3)
+            else # if is singular triangle
+                singul_ind = findfirst(ind->ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 1) % 3 + 1,i]]
+
+                f1 = forces[:,faces[singul_ind,i]]
+                f2 = forces[:,faces[(singul_ind) % 3 + 1,i]]
+                f3 = forces[:,faces[(singul_ind + 1) % 3 + 1,i]]
+                #println("L = $L,eeee $(L[ykey])")
+                #L[ykey] +=
+                velocities[:,ykey] += gauss_weaksingular(x->make_f_dot_G_times_norm_r(x,x1,x2,x3,f1,f2,f3), x1,x2,x3,gaussorder)
+                #println("$Ltemp, $(L[ykey]), $ykey")
+            end
+
+        end
+    end
+
+    return velocities / (8*π)
 end
 
 function make_L_sing(points, faces, normals; gaussorder=3)

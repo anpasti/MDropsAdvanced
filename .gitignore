@@ -11,3 +11,4 @@ read_and_plot0.jl
 *.toml
 Manifest.toml
 Project.toml
+results/
